@@ -1,12 +1,14 @@
-# encoding: utf-8
+#coding: utf-8
+#encoding: cp1251
 
 require "hpricot"
 require "open-uri"
 require "mechanize"
 require 'time'
+require 'rghost'
+require 'rghost_barcode'
 
 require 'rubygems'
-require 'mechanize'
 require 'sqlite3'
 
 class Bet
@@ -34,7 +36,7 @@ def create_db(path)
        db.execute <<SQL
 
          CREATE TABLE bets (
-           id PK Integer,
+           id INTEGER PRIMARY KEY,
            bet_name VARCHAR(255),
            bet_type VARCHAR(255),
            bet_sum  VARCHAR(255),
@@ -50,7 +52,10 @@ a = Mechanize.new { |agent|
   agent.user_agent_alias = 'Mac Safari'
 }
 
-a.get('file://output.html') do |page|
+
+a.get("file://" + "#{Dir.pwd}" + "/output.html") do |page|
+
+  page.encoding = 'cp1251'
   $bets_html = []
 
   page.search('//div[@class="BetMoreWindow"]').each  do |bet|
@@ -76,7 +81,6 @@ $bets_html.each do |b|
 
 
   bets.push(Bet.new(time, name, type, b_sum, w_sum, coef, result))
-  puts bets[-1].inspect
 end
 
 
@@ -86,8 +90,25 @@ else
   db = create_db("test.db")
 end
 
-bets.each do |bet|
-  db.execute( "insert into bets (id, bet_name, bet_type, bet_sum, win_sum, coef, result)
-values (#{bet.id}, '#{bet.name}', '#{bet.type}', '#{bet.b_sum}', '#{bet.w_sum}', '#{bet.coef}', '#{bet.result}');")
+begin
+  bets.each do |bet|
+    begin
+    puts bet.inspect
+    db.execute( "insert into bets (id, bet_name, bet_type, bet_sum, win_sum, coef, result)
+  values (#{bet.id}, '#{bet.name}', '#{bet.type}', '#{bet.b_sum}', '#{bet.w_sum}', '#{bet.coef}', '#{bet.result}');")
+    rescue Exception => err
+      puts err.inspect
+      db.execute("update bets set result = '#{bet.result}', win_sum = #{bet.w_sum} where id = #{bet.id};")
+    end
+  end
 end
 
+if ARGV[0] == 'barcode'
+  RGhost::Config::GS[:path]= "C:\\gs\\gs8.60\\bin\\gswin32c.exe"
+  doc=RGhost::Document.new
+  doc.barcode_code128("#{bets[-1].id}",{:text=>{:size=>8}, :parsefnc=>true, :enable=>[:text]})
+  doc.render :jpg, :resolution => 500, :filename => "my_barcode.jpg"
+  puts "barcode gonna print"
+
+  # TODO: запилить ticket-html
+end

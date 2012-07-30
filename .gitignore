@@ -1,3 +1,5 @@
 .idea
 *~
 simpleselector/*.pro.user
+simpleselector-build*
+test.rb
